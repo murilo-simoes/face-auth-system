@@ -1,144 +1,182 @@
-# Face Authentication System
+# 🧠 Face Recognition API
 
-Sistema de autenticação facial desenvolvido em Python, capaz de identificar e autenticar usuários automaticamente, atribuindo permissões de acesso de acordo com três níveis de segurança.
-
----
-
-## 📝 Descrição do Projeto
-
-O **Face Authentication System** é um sistema de controle de acesso baseado em reconhecimento facial. Ele captura a imagem do usuário via webcam, detecta e reconhece rostos usando **OpenCV** e **face_recognition**, e concede acesso com base em níveis predefinidos:
-
-- **Nível 1:** Acesso geral (usuários comuns).
-- **Nível 2:** Acesso restrito a diretores de divisões específicas.
-- **Nível 3:** Acesso exclusivo ao Ministro do Meio Ambiente.
-
-O sistema utiliza **MongoDB** como banco de dados para armazenar informações dos usuários e suas codificações faciais, permitindo fácil consulta e manutenção.
+API de reconhecimento facial desenvolvida em **Python** utilizando **Flask**, **face_recognition** e **MongoDB Atlas**.  
+Permite cadastrar rostos e validar se uma imagem enviada pertence a um rosto já cadastrado.
 
 ---
 
-## ⚙️ Funcionalidades
+## 🚀 Funcionalidades
 
-1. Cadastro de usuários com:
-   - Nome
-   - Nível de acesso (1, 2 ou 3)
-   - Codificação facial
-2. Reconhecimento facial em tempo real através da webcam
-3. Identificação múltipla de rostos simultaneamente
-4. Indicador visual:
-   - Retângulo verde para usuários com acesso permitido
-   - Retângulo vermelho para usuários não reconhecidos
-5. Log de usuários identificados (via banco de dados)
+### 1. Cadastrar rosto
+
+- Endpoint: `POST /register`
+- Envia uma imagem em **base64**, nome e nível de acesso.
+- A API extrai o encoding facial e armazena no banco de dados (MongoDB).
+- Se o rosto já estiver cadastrado, retorna um erro.
+
+### 2. Verificar rosto
+
+- Endpoint: `POST /verify`
+- Envia uma imagem em **base64**.
+- A API compara com todos os rostos cadastrados e retorna:
+
+  ```json
+  {
+    "nome": "Murilo",
+    "nivel": 2
+  }
+  ```
+
+- Caso o rosto não seja identificado:
+
+  ```json
+  {
+    "erro": "Rosto não reconhecido"
+  }
+  ```
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
-
-- **Python 3.11+**
-- **OpenCV** – captura e manipulação de vídeo
-- **face_recognition** – detecção e reconhecimento facial
-- **NumPy** – operações numéricas
-- **MongoDB** – armazenamento dos dados de usuários e codificações faciais
-- **threading** – processamento paralelo para maior fluidez do vídeo
-
----
-
-## 📁 Estrutura do Projeto
+## 🧩 Estrutura do Projeto
 
 ```
-
-face_auth_system/
-│
-├─ main.py                 # Script principal de reconhecimento facial
-├─ cadastro_usuario.py     # Script para cadastrar novos usuários
-├─ database.py             # Funções para interagir com o MongoDB
-├─ requirements.txt        # Dependências do projeto
-└─ README.md               # Este arquivo
-
+face-recognition-api/
+├── app.py               # Código principal da API Flask
+├── database.py          # Conexão e funções do MongoDB
+├── utils.py             # Funções auxiliares (conversão base64, encoding, etc)
+├── requirements.txt     # Dependências do projeto
+└── README.md            # Este arquivo
 ```
 
 ---
 
-## 💻 Instalação
+## ⚙️ Instalação
 
-1. Clone o repositório:
+### 1️⃣ Clonar o repositório
 
 ```bash
-git clone <URL_DO_REPOSITORIO>
-cd face_auth_system
+git clone https://github.com/seuusuario/face-recognition-api.git
+cd face-recognition-api
 ```
 
-2. Crie e ative um ambiente virtual (recomendado):
+### 2️⃣ Criar e ativar um ambiente virtual (recomendado)
 
 ```bash
 python -m venv venv
-# Windows
-venv\Scripts\activate
-# Linux / Mac
-source venv/bin/activate
+venv\Scripts\activate   # Windows
+# ou
+source venv/bin/activate  # Linux/Mac
 ```
 
-3. Instale as dependências:
+### 3️⃣ Instalar as dependências
 
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Configure o **MongoDB**:
-
-   - Certifique-se de ter um MongoDB rodando localmente ou na nuvem
-   - Edite `database.py` com a URI do seu MongoDB
+> Se quiser instalar o Flask manualmente:
+>
+> ```bash
+> pip install flask face_recognition opencv-python pymongo numpy
+> ```
 
 ---
 
-## 🚀 Uso
+## ☁️ Configurar MongoDB Atlas
 
-### 1. Cadastrar usuário
+1. Crie uma conta em [https://www.mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas)
+2. Crie um **Cluster gratuito**
+3. Copie a **connection string**, exemplo:
 
-```bash
-python cadastro_usuario.py
+   ```
+   mongodb+srv://usuario:senha@cluster0.mongodb.net/?retryWrites=true&w=majority
+   ```
+
+4. Crie um arquivo `.env` e adicione:
+
+   ```
+   MONGO_URI=sua_connection_string
+   DB_NAME=face_recognition
+   ```
+
+---
+
+## 🧠 Como Enviar Imagens
+
+Envie o conteúdo da imagem em **base64**:
+
+```json
+{
+  "nome": "Murilo",
+  "nivel": 2,
+  "imagem_base64": "/9j/4AAQSkZJRgABAQAAAQABAAD..."
+}
 ```
 
-O script vai solicitar:
-
-- Nome do usuário
-- Nível de acesso (1, 2 ou 3)
-
-Ele captura a imagem via webcam, processa o rosto e salva no banco de dados.
-
 ---
 
-### 2. Executar reconhecimento facial
+## 🧪 Testar com cURL ou Postman
+
+### Cadastrar rosto
 
 ```bash
-python main.py
+curl -X POST http://127.0.0.1:5000/register \
+  -H "Content-Type: application/json" \
+  -d "{\"nome\": \"Murilo\", \"nivel\": 2, \"imagem_base64\": \"$(base64 imagem.jpg)\"}"
 ```
 
-- Pressione **`q`** para sair
-- Usuários reconhecidos terão retângulos verdes e seus nomes + nível exibidos
-- Usuários desconhecidos aparecem em vermelho
+### Verificar rosto
+
+```bash
+curl -X POST http://127.0.0.1:5000/verify \
+  -H "Content-Type: application/json" \
+  -d "{\"imagem_base64\": \"$(base64 imagem_teste.jpg)\"}"
+```
 
 ---
 
-## ⚡ Melhorias implementadas
+## ▶️ Rodar o Servidor
 
-- **Threading**: captura de vídeo e reconhecimento facial rodando em paralelo, garantindo fluidez
-- **Redução de frame para processamento**: acelera a detecção sem perder precisão visual
-- Suporte a **múltiplos rostos simultâneos**
-- Sistema preparado para PCs potentes (roda em alta resolução com quase nenhum lag)
+```bash
+python app.py
+```
 
----
+A API estará disponível em:
 
-## 💡 Próximas melhorias
-
-- Integração com logs automáticos no MongoDB
-- Acesso baseado em eventos (por exemplo, abertura de portas automatizada)
-- Interface gráfica com PyQt ou Tkinter
-- Otimização para GPU (CUDA) para reconhecimento em tempo real ainda mais rápido
+```
+http://127.0.0.1:5000
+```
 
 ---
 
-## 📄 Licença
+## 📦 Exemplo de Resposta
 
-Este projeto é **open-source** e livre para uso acadêmico e experimental.
+✅ **Rosto reconhecido**
+
+```json
+{
+  "nome": "Murilo",
+  "nivel": 2
+}
+```
+
+❌ **Rosto não reconhecido**
+
+```json
+{
+  "erro": "Rosto não reconhecido"
+}
+```
+
+---
+
+## 📚 Dependências Principais
+
+- **Flask** — Framework web para criar a API
+- **face_recognition** — Biblioteca de reconhecimento facial
+- **opencv-python** — Manipulação de imagens
+- **pymongo** — Conexão com o MongoDB
+- **numpy** — Manipulação de arrays
+- **python-dotenv** — Leitura de variáveis de ambiente
 
 ---

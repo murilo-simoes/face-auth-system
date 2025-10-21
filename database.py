@@ -1,20 +1,30 @@
+import os
+from dotenv import load_dotenv
 from pymongo import MongoClient
-from config import MONGO_URI, DB_NAME
+
+load_dotenv()
+
+MONGO_URI = os.getenv("MONGO_URI")
+DB_NAME = os.getenv("DB_NAME", "face_auth")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME", "users")
 
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
-usuarios = db["users"]
+collection = db[COLLECTION_NAME]
 
-def salvar_usuario(nome, nivel, encoding):
-    usuarios.insert_one({
+
+def salvar_usuario(nome: str, nivel: int, face_encoding: list):
+    collection.insert_one({
         "nome": nome,
         "nivel": nivel,
-        "face_encoding": encoding,
+        "face_encoding": face_encoding
     })
 
-def listar_usuarios():
-    return list(usuarios.find({}, {"_id": 0}))
 
 def buscar_todos_encodings():
-    data = list(usuarios.find({}, {"_id": 0, "face_encoding": 1, "nome": 1, "nivel": 1}))
-    return data
+    usuarios = list(collection.find({}, {"_id": 0}))
+    return usuarios
+
+
+def buscar_por_nome(nome: str):
+    return collection.find_one({"nome": nome}, {"_id": 0})
