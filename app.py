@@ -12,7 +12,6 @@ CORS(app)
 
 @app.route("/register", methods=["POST"])
 def register_face():
- 
     data = request.get_json()
     nome = data.get("nome")
     nivel = data.get("nivel")
@@ -38,7 +37,8 @@ def register_face():
         if match:
             return jsonify({"erro": f"O rosto já está cadastrado como {u['nome']}"}), 409
 
-    salvar_usuario(nome, nivel, encoding.tolist())
+    salvar_usuario(nome, nivel, encoding.tolist(), image_base64)
+
     return jsonify({"mensagem": f"Usuário {nome} cadastrado com sucesso!", "nivel": nivel}), 201
 
 
@@ -77,7 +77,8 @@ def verify_face():
     if best_match:
         return jsonify({
             "nome": best_match["nome"],
-            "nivel": best_match["nivel"]
+            "nivel": best_match["nivel"],
+            "imagem_base64": best_match.get("imagem_base64") 
         }), 200
     else:
         return jsonify({"erro": "Rosto não reconhecido"}), 404

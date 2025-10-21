@@ -13,11 +13,12 @@ db = client[DB_NAME]
 collection = db[COLLECTION_NAME]
 
 
-def salvar_usuario(nome: str, nivel: int, face_encoding: list):
+def salvar_usuario(nome: str, nivel: int, face_encoding: list, imagem_base64: str):
     collection.insert_one({
         "nome": nome,
         "nivel": nivel,
-        "face_encoding": face_encoding
+        "face_encoding": face_encoding,
+        "imagem_base64": imagem_base64
     })
 
 
