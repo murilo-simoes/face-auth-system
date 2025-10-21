@@ -5,9 +5,10 @@ import numpy as np
 import face_recognition
 from database import salvar_usuario, buscar_todos_encodings
 from utils import decode_base64_image 
+from flask_cors import CORS
 
 app = Flask(__name__)
-
+CORS(app)
 
 @app.route("/register", methods=["POST"])
 def register_face():
