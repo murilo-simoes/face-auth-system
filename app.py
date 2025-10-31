@@ -3,7 +3,7 @@ import cv2
 import base64
 import numpy as np
 import face_recognition
-from database import salvar_usuario, buscar_todos_encodings, armarzenar_toxicina
+from database import salvar_usuario, buscar_todos_encodings, armarzenar_toxicina, procurar_toxina_por_id, atualizar_toxina
 from utils import decode_base64_image 
 from flask_cors import CORS
 from validate import validateToxin
@@ -109,6 +109,36 @@ def store_toxin():
         print(e)
         return jsonify({
             "message": "Can't store data at the moment"
+        }), 500
+
+@app.put("/toxin/<string:id>")
+def update_toxin(id: str):
+    try:
+        if procurar_toxina_por_id(id) is None:
+            return jsonify({
+                "error": "Toxin not found"
+            }), 404
+        
+        body = request.get_json()
+
+        toxin = {
+            "nome": body.get('nome'),
+            "tipo": body.get('tipo'),
+            "periculosidade": body.get('periculosidade'),
+            "nivel": body.get('nivel')
+        }
+
+        if not validateToxin(toxin):
+            return jsonify({
+                "error": "invalid data"
+            }), 400
+
+    
+        atualizar_toxina(id, toxin)
+        return Response(status=204)
+    except:
+        return jsonify({
+            "error": "Can't update toxin"
         }), 500
 
 if __name__ == "__main__":

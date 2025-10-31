@@ -2,6 +2,8 @@ import os
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from datetime import datetime
+from bson.objectid import ObjectId
+from typing import Union
 import certifi
 
 load_dotenv()
@@ -40,3 +42,20 @@ def armarzenar_toxicina(toxin: dict) -> None:
         "criado_em": criado_em
     })
     
+
+def procurar_toxina_por_id(id: str) -> Union[dict, None]:
+    return db.toxin.find_one({
+        "_id": ObjectId(id)
+    })
+
+def atualizar_toxina(id: str, toxina: dict) -> None:
+    db.toxin.update_one(
+        {
+            "_id": ObjectId(id)
+        },
+        {
+            "$set": {
+                **toxina
+            }
+        }
+    )
