@@ -1,11 +1,12 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 import cv2
 import base64
 import numpy as np
 import face_recognition
-from database import salvar_usuario, buscar_todos_encodings
+from database import salvar_usuario, buscar_todos_encodings, armarzenar_toxicina
 from utils import decode_base64_image 
 from flask_cors import CORS
+from validate import validateToxin
 
 app = Flask(__name__)
 CORS(app)
@@ -83,6 +84,32 @@ def verify_face():
     else:
         return jsonify({"erro": "Rosto não reconhecido"}), 404
 
+@app.post('/toxin')
+def store_toxin():
+    body = request.get_json()
+
+    toxin = {
+        "nome": body.get('nome'),
+        "tipo": body.get('tipo'),
+        "periculosidade": body.get('periculosidade'),
+        "nivel": body.get('nivel')
+    }
+
+    if not validateToxin(toxin):
+        return jsonify({
+            "error": "Invalid data",
+        }), 400
+    
+    try:
+        armarzenar_toxicina(toxin)
+        return jsonify({
+            "message": "toxin store successfully!"
+        }), 201
+    except Exception as e:
+        print(e)
+        return jsonify({
+            "message": "Can't store data at the moment"
+        }), 500
 
 if __name__ == "__main__":
     app.run(debug=True)
