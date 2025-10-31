@@ -59,3 +59,8 @@ def atualizar_toxina(id: str, toxina: dict) -> None:
             }
         }
     )
+
+def remover_toxina(id: str) -> None:
+    db.toxin.delete_one({
+        "_id": ObjectId(id)
+    })

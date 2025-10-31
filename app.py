@@ -3,7 +3,7 @@ import cv2
 import base64
 import numpy as np
 import face_recognition
-from database import salvar_usuario, buscar_todos_encodings, armarzenar_toxicina, procurar_toxina_por_id, atualizar_toxina
+from database import salvar_usuario, buscar_todos_encodings, armarzenar_toxicina, procurar_toxina_por_id, atualizar_toxina, remover_toxina
 from utils import decode_base64_image 
 from flask_cors import CORS
 from validate import validateToxin
@@ -141,5 +141,21 @@ def update_toxin(id: str):
             "error": "Can't update toxin"
         }), 500
 
+@app.delete("/toxin/<string:id>")
+def delete_toxin(id: str):
+    try:
+        if procurar_toxina_por_id(id) is None:
+            return jsonify({
+                "error": "Toxina not found"
+            }), 404
+
+        remover_toxina(id)
+        return Response(status=204)
+    except:
+        return jsonify({
+            "error": "Can't remove toxin at the moment."
+        }), 500
+
 if __name__ == "__main__":
     app.run(debug=True)
+
