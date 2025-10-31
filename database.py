@@ -2,6 +2,8 @@ import os
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from datetime import datetime
+from bson.regex import Regex
+from re import compile
 from bson.objectid import ObjectId
 from typing import Union
 import certifi
@@ -64,3 +66,26 @@ def remover_toxina(id: str) -> None:
     db.toxin.delete_one({
         "_id": ObjectId(id)
     })
+
+def listar_toxinas(params: dict) -> list[dict]:
+    numeric_fields = ['nivel', 'periculosidade']
+
+    query = {}
+
+    for field in params:
+        if params[field] is None:
+            continue
+
+        if field in numeric_fields:
+            query[field] = int(params[field])
+            continue
+
+        query[field] = Regex.from_native(compile(f".*{params[field]}.*"))
+
+
+    toxins = db.toxin.find(query).to_list()
+
+    for i in range(len(toxins)):
+        toxins[i]['_id'] = str(toxins[i]['_id'])
+
+    return toxins

@@ -3,7 +3,7 @@ import cv2
 import base64
 import numpy as np
 import face_recognition
-from database import salvar_usuario, buscar_todos_encodings, armarzenar_toxicina, procurar_toxina_por_id, atualizar_toxina, remover_toxina
+from database import salvar_usuario, buscar_todos_encodings, armarzenar_toxicina, procurar_toxina_por_id, atualizar_toxina, remover_toxina, listar_toxinas
 from utils import decode_base64_image 
 from flask_cors import CORS
 from validate import validateToxin
@@ -84,6 +84,19 @@ def verify_face():
     else:
         return jsonify({"erro": "Rosto não reconhecido"}), 404
 
+@app.get("/toxin")
+def list_all_toxins():
+    params = {
+        "nome": request.args.get('nome'),
+        "tipo": request.args.get('tipo'),
+        "periculosidade": request.args.get('periculosidade'),
+        "nivel": request.args.get('nivel')
+    }
+
+    toxins = listar_toxinas(params)
+    return jsonify(toxins), 200
+
+
 @app.post('/toxin')
 def store_toxin():
     body = request.get_json()
@@ -136,6 +149,7 @@ def update_toxin(id: str):
     
         atualizar_toxina(id, toxin)
         return Response(status=204)
+    
     except:
         return jsonify({
             "error": "Can't update toxin"
@@ -151,6 +165,7 @@ def delete_toxin(id: str):
 
         remover_toxina(id)
         return Response(status=204)
+    
     except:
         return jsonify({
             "error": "Can't remove toxin at the moment."
