@@ -3,7 +3,8 @@ import cv2
 import base64
 import numpy as np
 import face_recognition
-from database import salvar_usuario, buscar_todos_encodings, armarzenar_toxicina, procurar_toxina_por_id, atualizar_toxina, remover_toxina, listar_toxinas
+import os
+from database import salvar_usuario, buscar_todos_encodings, buscar_todos_encodings_com_id, armarzenar_toxicina, procurar_toxina_por_id, atualizar_toxina, remover_toxina, listar_toxinas, buscar_toxinas_por_nivel_maximo, verificar_usuario_nivel_3, buscar_usuario_por_id, remover_usuario
 from utils import decode_base64_image 
 from flask_cors import CORS
 from validate import validateToxin
@@ -20,6 +21,9 @@ def register_face():
 
     if not nome or not nivel or not image_base64:
         return jsonify({"erro": "Campos obrigatórios: nome, nivel, imagem_base64"}), 400
+
+    if nivel == 3 and verificar_usuario_nivel_3():
+        return jsonify({"erro": "Já existe um usuário de nível 3 cadastrado."}), 409
 
     rgb = decode_base64_image(image_base64)
     if rgb is None:
@@ -38,9 +42,20 @@ def register_face():
         if match:
             return jsonify({"erro": f"O rosto já está cadastrado como {u['nome']}"}), 409
 
-    salvar_usuario(nome, nivel, encoding.tolist(), image_base64)
+    usuario_criado = salvar_usuario(nome, nivel, encoding.tolist(), image_base64)
+    
+    # Remover face_encoding da resposta (dados sensíveis e muito grandes)
+    usuario_resposta = {
+        "_id": usuario_criado.get("_id"),
+        "nome": usuario_criado.get("nome"),
+        "nivel": usuario_criado.get("nivel"),
+        "imagem_base64": usuario_criado.get("imagem_base64")
+    }
 
-    return jsonify({"mensagem": f"Usuário {nome} cadastrado com sucesso!", "nivel": nivel}), 201
+    return jsonify({
+        "mensagem": f"Usuário {nome} cadastrado com sucesso!",
+        "usuario": usuario_resposta
+    }), 201
 
 
 @app.route("/verify", methods=["POST"])
@@ -61,7 +76,7 @@ def verify_face():
 
     encoding = np.array(encodings[0])
 
-    usuarios = buscar_todos_encodings()
+    usuarios = buscar_todos_encodings_com_id()
     if not usuarios:
         return jsonify({"erro": "Nenhum usuário cadastrado"}), 404
 
@@ -77,9 +92,10 @@ def verify_face():
 
     if best_match:
         return jsonify({
+            "_id": best_match.get("_id"),
             "nome": best_match["nome"],
             "nivel": best_match["nivel"],
-            "imagem_base64": best_match.get("imagem_base64") 
+            "imagem_base64": best_match.get("imagem_base64")
         }), 200
     else:
         return jsonify({"erro": "Rosto não reconhecido"}), 404
@@ -95,6 +111,25 @@ def list_all_toxins():
 
     toxins = listar_toxinas(params)
     return jsonify(toxins), 200
+
+@app.get("/toxin/user/<string:id>")
+def list_toxins_by_user_id(id: str):
+    try:
+        usuario = buscar_usuario_por_id(id)
+        if usuario is None:
+            return jsonify({
+                "erro": "Usuário não encontrado"
+            }), 404
+        
+        nivel_usuario = usuario.get("nivel")
+        toxinas = buscar_toxinas_por_nivel_maximo(nivel_usuario)
+        return jsonify(toxinas), 200
+    
+    except Exception as e:
+        print(e)
+        return jsonify({
+            "erro": "Não foi possível buscar as toxinas no momento."
+        }), 500
 
 
 @app.post('/toxin')
@@ -171,6 +206,27 @@ def delete_toxin(id: str):
             "error": "Can't remove toxin at the moment."
         }), 500
 
+@app.delete("/user/<string:id>")
+def delete_user(id: str):
+    try:
+        usuario = buscar_usuario_por_id(id)
+        if usuario is None:
+            return jsonify({
+                "erro": "Usuário não encontrado"
+            }), 404
+
+        remover_usuario(id)
+        return jsonify({
+            "mensagem": f"Usuário {usuario.get('nome')} removido com sucesso!"
+        }), 200
+    
+    except Exception as e:
+        print(e)
+        return jsonify({
+            "erro": "Não foi possível remover o usuário no momento."
+        }), 500
+
 if __name__ == "__main__":
-    app.run(debug=True)
+   app.run(host="0.0.0.0", port=5000)
+
 
