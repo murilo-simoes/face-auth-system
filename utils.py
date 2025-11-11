@@ -45,9 +45,64 @@ def validate_video_file(file_path: str, max_size_mb: int = 15) -> Tuple[bool, Op
         
         fps = cap.get(cv2.CAP_PROP_FPS)
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        # Validar valores de metadados (WebM às vezes reporta valores inválidos)
+        fps_valid = 0 < fps <= 120
+        frame_count_valid = 0 < frame_count < 1000000  # Evitar valores negativos ou absurdamente grandes
+        
+        print(f"[DEBUG] Vídeo - FPS: {fps}, Frames: {frame_count}, FPS válido: {fps_valid}, Frame count válido: {frame_count_valid}")
+        
+        # Se metadados são inválidos, tentar validar lendo frames reais
+        if not fps_valid or not frame_count_valid:
+            print("[DEBUG] Metadados inválidos, validando vídeo lendo frames reais...")
+            
+            # Tentar ler frames para estimar duração real
+            frames_read = 0
+            start_time = None
+            end_time = None
+            max_frames_to_test = 300  # Limitar para não demorar muito
+            
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            while frames_read < max_frames_to_test:
+                ret, frame = cap.read()
+                if not ret or frame is None:
+                    break
+                
+                if frames_read == 0:
+                    start_time = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+                
+                frames_read += 1
+                end_time = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+                
+                # Se já leu frames suficientes e tem tempo válido, calcular duração
+                if frames_read >= 30 and end_time > start_time:
+                    estimated_duration = end_time - start_time
+                    if estimated_duration >= 1.0:
+                        print(f"[DEBUG] Duração estimada lendo frames: {estimated_duration:.2f}s ({frames_read} frames)")
+                        
+                        if estimated_duration > 10.0:
+                            cap.release()
+                            print(f"[ERROR] Vídeo muito longo: {estimated_duration:.2f}s > 10.0s")
+                            return False, "Vídeo excede duração máxima permitida"
+                        
+                        cap.release()
+                        print("[DEBUG] Validação de vídeo: OK (validação por leitura de frames)")
+                        return True, None
+            
+            # Se conseguiu ler pelo menos alguns frames, aceitar
+            if frames_read >= 10:
+                cap.release()
+                print(f"[DEBUG] Validação de vídeo: OK (leu {frames_read} frames, metadados inválidos mas vídeo é válido)")
+                return True, None
+            else:
+                cap.release()
+                print(f"[ERROR] Não foi possível ler frames suficientes do vídeo ({frames_read} frames)")
+                return False, "Não foi possível validar o vídeo"
+        
+        # Se metadados são válidos, usar cálculo normal
         duration = frame_count / fps if fps > 0 else 0
         
-        print(f"[DEBUG] Vídeo - FPS: {fps}, Frames: {frame_count}, Duração: {duration:.2f}s")
+        print(f"[DEBUG] Duração calculada: {duration:.2f}s")
         
         cap.release()
         
@@ -82,14 +137,17 @@ def extract_frames_from_video(video_path: str, num_frames: int = 12) -> Tuple[Li
     fps = cap.get(cv2.CAP_PROP_FPS)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     
+    # Validar total_frames (WebM pode reportar valores inválidos)
+    total_frames_valid = 0 < total_frames < 1000000
+    
     # Corrigir FPS inválido (WebM às vezes reporta FPS errado)
     if fps <= 0 or fps > 120:
         # Tentar calcular FPS real lendo alguns frames
         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
         ret, _ = cap.read()
-        if ret and total_frames > 0:
+        if ret:
             # Ler alguns frames para estimar FPS
-            test_frames = min(30, total_frames)
+            test_frames = 30
             start_time = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
             for _ in range(test_frames):
                 ret, _ = cap.read()
@@ -108,19 +166,48 @@ def extract_frames_from_video(video_path: str, num_frames: int = 12) -> Tuple[Li
             fps = 30.0
             print(f"[DEBUG] FPS inválido, usando padrão: {fps}")
     
-    print(f"[DEBUG] Extraindo frames - Total: {total_frames}, FPS: {fps:.2f}, Solicitados: {num_frames}")
+    print(f"[DEBUG] Extraindo frames - Total: {total_frames}, FPS: {fps:.2f}, Solicitados: {num_frames}, Total válido: {total_frames_valid}")
     
-    if total_frames == 0:
-        print("[ERROR] Vídeo não tem frames")
+    # Se total_frames é inválido, usar leitura sequencial diretamente
+    if not total_frames_valid:
+        print("[DEBUG] Total de frames inválido, usando leitura sequencial direta")
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        
+        # Ler todos os frames disponíveis primeiro
+        all_frames = []
+        max_frames_to_read = 1000  # Limite de segurança
+        
+        while len(all_frames) < max_frames_to_read:
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                break
+            all_frames.append(frame)
+        
+        print(f"[DEBUG] Total de frames lidos: {len(all_frames)}")
+        
+        if len(all_frames) == 0:
+            cap.release()
+            return [], fps
+        
+        # Amostrar uniformemente dos frames lidos
+        if len(all_frames) >= num_frames:
+            step = max(1, len(all_frames) // num_frames)
+            frames = [all_frames[i] for i in range(0, len(all_frames), step)][:num_frames]
+        else:
+            # Se tem menos frames que o solicitado, usar todos
+            frames = all_frames
+        
+        print(f"[DEBUG] Frames extraídos com sucesso: {len(frames)}/{num_frames} (de {len(all_frames)} frames totais)")
         cap.release()
-        return [], fps
+        return frames, fps
     
-    # Extrair frames de forma mais robusta
-    # Tentar usar índices calculados primeiro
+    # Se total_frames é válido, tentar usar índices calculados
     frame_indices = np.linspace(0, total_frames - 1, num_frames, dtype=int)
     print(f"[DEBUG] Tentando extrair frames nos índices: {frame_indices.tolist()}")
     
     for idx in frame_indices:
+        if idx < 0:  # Pular índices inválidos
+            continue
         cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
         ret, frame = cap.read()
         if ret and frame is not None:
