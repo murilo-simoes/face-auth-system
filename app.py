@@ -69,17 +69,24 @@ def verify_face():
     temp_video_path = None
     video_format = None
     
+    print(f"[DEBUG] Requisição recebida - Method: {request.method}, Content-Type: {request.content_type}")
+    print(f"[DEBUG] Files no request: {list(request.files.keys())}")
+    print(f"[DEBUG] Form data: {list(request.form.keys())}")
+    
     try:
         # Verificar se há vídeo no multipart/form-data (prioridade)
         if 'video' in request.files:
             video_file = request.files['video']
             
             if video_file.filename == '':
+                print("[ERROR 400] Arquivo de vídeo vazio")
                 return jsonify({"erro": "Arquivo de vídeo vazio"}), 400
             
             # Validar MIME type
             content_type = video_file.content_type
+            print(f"[DEBUG] Content-Type recebido: {content_type}")
             if content_type not in ['video/mp4', 'video/webm']:
+                print(f"[ERROR 415] Formato não suportado: {content_type}")
                 return jsonify({"erro": "Formato de vídeo não suportado. Use video/mp4 ou video/webm"}), 415
             
             # Determinar formato
@@ -88,18 +95,22 @@ def verify_face():
             # Salvar arquivo temporário
             temp_video_path = save_temp_video(video_file, video_format)
             if not temp_video_path:
+                print("[ERROR 500] Falha ao salvar arquivo temporário")
                 return jsonify({"erro": "Erro ao processar vídeo"}), 500
             
             # Validar vídeo (tamanho e duração)
             is_valid, error_msg = validate_video_file(temp_video_path, max_size_mb=15)
             if not is_valid:
+                print(f"[ERROR 400] Validação de vídeo falhou: {error_msg}")
                 if os.path.exists(temp_video_path):
                     os.unlink(temp_video_path)
                 return jsonify({"erro": error_msg}), 400
             
             # Extrair frames do vídeo
             frames, fps = extract_frames_from_video(temp_video_path, num_frames=12)
+            print(f"[DEBUG] Frames extraídos: {len(frames)}, FPS: {fps}")
             if len(frames) < 5:
+                print(f"[ERROR 400] Frames insuficientes: {len(frames)} < 5")
                 if os.path.exists(temp_video_path):
                     os.unlink(temp_video_path)
                 return jsonify({"erro": "Não foi possível extrair frames suficientes do vídeo"}), 400
@@ -131,14 +142,17 @@ def verify_face():
             # Fallback: processar imagem base64 (compatibilidade com código antigo)
             data = request.get_json()
             if not data:
+                print("[ERROR 400] Nenhum dado JSON recebido e nenhum vídeo no multipart")
                 return jsonify({"erro": "Campo obrigatório: video (multipart) ou imagem_base64 (JSON)"}), 400
             
             image_base64 = data.get("imagem_base64")
             if not image_base64:
+                print("[ERROR 400] Campo imagem_base64 não encontrado no JSON")
                 return jsonify({"erro": "Campo obrigatório: video (multipart) ou imagem_base64 (JSON)"}), 400
             
             rgb = decode_base64_image(image_base64)
             if rgb is None:
+                print("[ERROR 400] Falha ao decodificar imagem base64")
                 return jsonify({"erro": "Imagem inválida"}), 400
             
             # Para imagem única, não há anti-spoofing - assumir liveness=true para compatibilidade
@@ -153,6 +167,7 @@ def verify_face():
         # Só chega aqui se liveness passou (ou se foi imagem base64)
         encodings = face_recognition.face_encodings(rgb)
         if not encodings:
+            print("[ERROR 400] Nenhum rosto detectado na imagem/frame")
             return jsonify({"erro": "Nenhum rosto detectado"}), 400
         
         encoding = np.array(encodings[0])
