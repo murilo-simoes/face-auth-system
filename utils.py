@@ -171,17 +171,56 @@ def extract_frames_from_video(video_path: str, num_frames: int = 12) -> Tuple[Li
     # Se total_frames é inválido, usar leitura sequencial diretamente
     if not total_frames_valid:
         print("[DEBUG] Total de frames inválido, usando leitura sequencial direta")
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
         
-        # Ler todos os frames disponíveis primeiro
+        # Fechar e reabrir o vídeo para garantir estado limpo (importante para WebM/VP9)
+        cap.release()
+        cap = cv2.VideoCapture(video_path)
+        
+        if not cap.isOpened():
+            print("[ERROR] Não foi possível reabrir vídeo para extrair frames")
+            return [], fps
+        
+        # Tentar configurar para melhor compatibilidade com WebM
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        
+        # Ler todos os frames disponíveis
         all_frames = []
         max_frames_to_read = 1000  # Limite de segurança
+        consecutive_failures = 0
+        max_consecutive_failures = 30  # Aumentar tolerância para WebM/VP9
+        total_attempts = 0
+        successful_reads = 0
         
-        while len(all_frames) < max_frames_to_read:
+        print("[DEBUG] Iniciando leitura sequencial de frames...")
+        
+        # Tentar ler pelo menos alguns frames antes de desistir
+        while len(all_frames) < max_frames_to_read and total_attempts < max_frames_to_read * 2:
+            total_attempts += 1
             ret, frame = cap.read()
+            
             if not ret or frame is None:
-                break
+                consecutive_failures += 1
+                
+                # Se já leu alguns frames, parar após muitas falhas
+                if successful_reads > 0 and consecutive_failures >= max_consecutive_failures:
+                    print(f"[DEBUG] Muitas falhas consecutivas ({consecutive_failures}) após {successful_reads} frames, parando leitura")
+                    break
+                
+                # Se ainda não leu nenhum frame, continuar tentando
+                if successful_reads == 0:
+                    # Tentar resetar posição a cada 20 tentativas
+                    if total_attempts % 20 == 0:
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        print(f"[DEBUG] Resetando posição do vídeo (tentativa {total_attempts})")
+                continue
+            
+            consecutive_failures = 0
+            successful_reads += 1
             all_frames.append(frame)
+            
+            # Log a cada 10 frames para debug
+            if len(all_frames) % 10 == 0:
+                print(f"[DEBUG] Frames lidos até agora: {len(all_frames)}")
         
         print(f"[DEBUG] Total de frames lidos: {len(all_frames)}")
         
