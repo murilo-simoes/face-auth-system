@@ -4,6 +4,9 @@ import numpy as np
 import os
 import tempfile
 from typing import List, Tuple, Optional
+import subprocess
+import os
+import uuid
 
 def decode_base64_image(image_base64: str):
     """Converte string base64 em frame RGB (OpenCV)."""
@@ -305,3 +308,22 @@ def save_temp_video(file_storage, video_format: str = "mp4") -> Optional[str]:
         return None
 
 
+def convert_to_mp4(input_path: str, output_dir: str = "tmp_videos") -> str:
+    """Converte um vídeo para MP4 usando ffmpeg."""
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, f"{uuid.uuid4()}.mp4")
+    
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i", input_path,
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "23",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        output_path
+    ]
+    
+    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+    return output_path

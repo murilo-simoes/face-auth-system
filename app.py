@@ -6,7 +6,7 @@ import face_recognition
 import os
 from datetime import datetime
 from database import salvar_usuario, buscar_todos_encodings, buscar_todos_encodings_com_id, armarzenar_toxicina, procurar_toxina_por_id, atualizar_toxina, remover_toxina, listar_toxinas, buscar_toxinas_por_nivel_maximo, verificar_usuario_nivel_3, buscar_usuario_por_id, remover_usuario
-from utils import decode_base64_image, validate_video_file, extract_frames_from_video, save_temp_video
+from utils import decode_base64_image, validate_video_file, extract_frames_from_video, save_temp_video, convert_to_mp4
 from flask_cors import CORS
 from validate import validateToxin
 from anti_spoofing import process_anti_spoofing
@@ -98,6 +98,16 @@ def verify_face():
                 print("[ERROR 500] Falha ao salvar arquivo temporário")
                 return jsonify({"erro": "Erro ao processar vídeo"}), 500
             
+            # Se for webm, converter para mp4 automaticamente
+            if video_format == "webm":
+                print("[DEBUG] Convertendo vídeo WebM para MP4...")
+                temp_video_path_mp4 = convert_to_mp4(temp_video_path)
+                # Limpar arquivo webm original
+                os.unlink(temp_video_path)
+                temp_video_path = temp_video_path_mp4
+                video_format = "mp4"
+                print(f"[DEBUG] Conversão concluída: {temp_video_path}")
+            
             # Validar vídeo (tamanho e duração)
             is_valid, error_msg = validate_video_file(temp_video_path, max_size_mb=15)
             if not is_valid:
@@ -123,8 +133,7 @@ def verify_face():
                 os.unlink(temp_video_path)
                 temp_video_path = None
             
-            
-            # Se liveness falhar, retornar erro imediatamente (sem verificar identidade)
+            # Se liveness falhar, retornar erro imediatamente
             if not anti_spoof_result["liveness"]:
                 response_obj = jsonify({
                     "erro": f"Falha na verificação de liveness: {anti_spoof_result.get('reason', 'spoof_detectado')}",
@@ -133,13 +142,13 @@ def verify_face():
                 })
                 if video_format == "webm":
                     response_obj.headers["X-Video-Format"] = "webm"
-                return response_obj, 403  # 403 Forbidden - tentativa de spoofing detectada
+                return response_obj, 403  # tentativa de spoofing detectada
             
             # Se liveness passou, usar o último frame para verificação de identidade
             rgb = cv2.cvtColor(frames[-1], cv2.COLOR_BGR2RGB)
-            
+        
         else:
-            # Fallback: processar imagem base64 (compatibilidade com código antigo)
+            # Fallback: processar imagem base64
             data = request.get_json()
             if not data:
                 print("[ERROR 400] Nenhum dado JSON recebido e nenhum vídeo no multipart")
@@ -155,7 +164,6 @@ def verify_face():
                 print("[ERROR 400] Falha ao decodificar imagem base64")
                 return jsonify({"erro": "Imagem inválida"}), 400
             
-            # Para imagem única, não há anti-spoofing - assumir liveness=true para compatibilidade
             anti_spoof_result = {
                 "liveness": True,
                 "final_score": 1.0,
@@ -163,8 +171,7 @@ def verify_face():
                 "reason": "image_fallback"
             }
         
-        # Verificação de identidade (fluxo existente)
-        # Só chega aqui se liveness passou (ou se foi imagem base64)
+        # Verificação de identidade
         encodings = face_recognition.face_encodings(rgb)
         if not encodings:
             print("[ERROR 400] Nenhum rosto detectado na imagem/frame")
@@ -176,19 +183,15 @@ def verify_face():
         if not usuarios:
             return jsonify({"erro": "Nenhum usuário cadastrado"}), 404
         
-        # Comparar encoding do vídeo com todos os usuários cadastrados no banco
         best_match = None
         lowest_distance = 1.0
-        
         for u in usuarios:
             known_encoding = np.array(u["face_encoding"])
             distance = face_recognition.face_distance([known_encoding], encoding)[0]
-            # Se a distância for menor que 0.45, considera match
             if distance < lowest_distance and distance < 0.45:
                 lowest_distance = distance
                 best_match = u
         
-        # Se rosto foi reconhecido, SEMPRE retornar formato antigo com dados do usuário
         if best_match:
             response_obj = jsonify({
                 "_id": best_match.get("_id"),
@@ -200,7 +203,6 @@ def verify_face():
                 response_obj.headers["X-Video-Format"] = "webm"
             return response_obj, 200
         
-        # Se rosto não foi reconhecido, retornar formato antigo de erro
         response_obj = jsonify({"erro": "Rosto não reconhecido"})
         if video_format == "webm":
             response_obj.headers["X-Video-Format"] = "webm"
@@ -212,10 +214,8 @@ def verify_face():
         return jsonify({"erro": "Timeout no processamento. Tente novamente."}), 503
     
     except Exception as e:
-        # Limpar arquivo temporário em caso de erro
         if temp_video_path and os.path.exists(temp_video_path):
             os.unlink(temp_video_path)
-        
         print(f"Erro em verify_face: {e}")
         return jsonify({
             "liveness": False,

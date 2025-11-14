@@ -64,19 +64,20 @@ def score_yolo(frames: List[np.ndarray]) -> float:
                 for box in boxes:
                     conf = math.ceil((box.conf[0] * 100)) / 100
                     cls = int(box.cls[0])
-                    
                     if conf > YOLO_CONFIDENCE:
                         if INVERT_CLASSES or True:
-                            if cls == 0:
+                            # Inverte as classes somente se solicitado
+                            if cls == 0:   # fake
                                 frame_detections["real"].append(conf)
-                            elif cls == 1:
+                            elif cls == 1: # real
                                 frame_detections["fake"].append(conf)
                         else:
-                            if cls == 0:
+                            # Usa as classes corretas do modelo
+                            if cls == 0:   # fake
                                 frame_detections["fake"].append(conf)
-                            elif cls == 1:
+                            elif cls == 1: # real
                                 frame_detections["real"].append(conf)
-            
+                                    
             max_real = max(frame_detections["real"]) if frame_detections["real"] else 0.0
             max_fake = max(frame_detections["fake"]) if frame_detections["fake"] else 0.0
             
@@ -112,21 +113,26 @@ def score_yolo(frames: List[np.ndarray]) -> float:
         return 0.5
 
 
+REAL_THRESHOLD = 0.85  # score mínimo para considerar liveness
+
 def fuse_scores(scores: Dict[str, float], detections_info: Optional[Dict] = None) -> Tuple[float, Optional[str]]:
     yolo_score = scores.get("yolo", 0.5)
     
+    # spoof detectado claramente
     if yolo_score < 0.1:
         return 0.0, "spoof_detected_yolo_fake"
     
+    # sem detecção suficiente = neutro
     if abs(yolo_score - 0.5) < 0.01:
-        if detections_info and detections_info.get("no_detections", False):
-            return 0.0, "spoof_detected_no_detection"
-        return 0.0, "spoof_detected_no_detection"
-    
-    if yolo_score > 0.5:
+        return 0.5, "no_detection"
+
+    # real claro
+    if yolo_score >= REAL_THRESHOLD:
         return float(yolo_score), "ok"
     
+    # suspeito ou baixo score
     return 0.0, "low_confidence"
+
 
 
 def process_anti_spoofing(frames: List[np.ndarray], fps: float) -> Dict:
@@ -134,7 +140,7 @@ def process_anti_spoofing(frames: List[np.ndarray], fps: float) -> Dict:
     scores = {"yolo": yolo_score}
     detections_info = getattr(score_yolo, '_last_detections', {})
     final_score, reason = fuse_scores(scores, detections_info)
-    liveness = final_score > 0.5
+    liveness = final_score >= REAL_THRESHOLD
     
     print(f"[Anti-Spoofing] Score: {scores['yolo']:.3f}, Final: {final_score:.3f}, Liveness: {liveness}, Reason: {reason}")
     
