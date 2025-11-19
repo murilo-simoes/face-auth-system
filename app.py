@@ -4,6 +4,7 @@ import base64
 import numpy as np
 import face_recognition
 import os
+import logging
 from datetime import datetime
 from database import salvar_usuario, buscar_todos_encodings, buscar_todos_encodings_com_id, armarzenar_toxicina, procurar_toxina_por_id, atualizar_toxina, remover_toxina, listar_toxinas, buscar_toxinas_por_nivel_maximo, verificar_usuario_nivel_3, buscar_usuario_por_id, remover_usuario
 from utils import decode_base64_image, validate_video_file, extract_frames_from_video, save_temp_video, convert_to_mp4
@@ -11,9 +12,14 @@ from flask_cors import CORS
 from validate import validateToxin
 from anti_spoofing import process_anti_spoofing
 
+
+logging.basicConfig(level=logging.DEBUG)
+
+
 app = Flask(__name__)
 CORS(app)
 
+app.logger.setLevel(logging.DEBUG)
 @app.route("/register", methods=["POST"])
 def register_face():
     data = request.get_json()
