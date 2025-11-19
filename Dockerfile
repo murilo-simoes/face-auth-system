@@ -2,7 +2,6 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Instalar dependências do sistema necessárias para OpenCV e outras bibliotecas
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
@@ -10,6 +9,9 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     libgomp1 \
+    cmake \
+    build-essential \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar e instalar dependências Python
