@@ -1,0 +1,8 @@
+version: "3.9"
+services:
+  face-auth-system:
+    build: .
+    container_name: face-auth-system
+    restart: always
+    ports:
+      - "3001:3000"
