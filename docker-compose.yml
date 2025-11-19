@@ -1,4 +1,5 @@
 version: "3.9"
+
 services:
   face-auth-system:
     build: .
@@ -6,3 +7,9 @@ services:
     restart: always
     ports:
       - "5000:5000"
+    networks:
+      - face-auth-net
+
+networks:
+  face-auth-net:
+    driver: bridge
